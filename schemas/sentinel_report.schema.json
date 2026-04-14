@@ -1,0 +1,85 @@
+{
+  "$defs": {
+    "FragilityPoint": {
+      "additionalProperties": false,
+      "description": "Detected fragility point for convergence risk.",
+      "properties": {
+        "node_id": {
+          "title": "Node Id",
+          "type": "string"
+        },
+        "incoming_critical_paths": {
+          "title": "Incoming Critical Paths",
+          "type": "integer"
+        },
+        "pci_score": {
+          "title": "Pci Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "node_id",
+        "incoming_critical_paths",
+        "pci_score"
+      ],
+      "title": "FragilityPoint",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Final report produced by the Sentinel engine.",
+  "properties": {
+    "project_duration_base": {
+      "title": "Project Duration Base",
+      "type": "number"
+    },
+    "critical_path_base": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Critical Path Base",
+      "type": "array"
+    },
+    "fragility_points": {
+      "items": {
+        "$ref": "#/$defs/FragilityPoint"
+      },
+      "title": "Fragility Points",
+      "type": "array"
+    },
+    "cruciality_metrics": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Cruciality Metrics",
+      "type": "object"
+    },
+    "project_confidence": {
+      "title": "Project Confidence",
+      "type": "number"
+    },
+    "sensitivity_spearman": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Sensitivity Spearman",
+      "type": "object"
+    },
+    "tornado_impact": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Tornado Impact",
+      "type": "object"
+    }
+  },
+  "required": [
+    "project_duration_base",
+    "critical_path_base",
+    "fragility_points",
+    "cruciality_metrics",
+    "project_confidence"
+  ],
+  "title": "SentinelReport",
+  "type": "object"
+}

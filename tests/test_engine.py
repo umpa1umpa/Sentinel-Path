@@ -101,3 +101,26 @@ def test_export_charts_creates_expected_files(tmp_path) -> None:
     for key in ("finish_date_histogram", "s_curve", "tornado"):
         assert key in exported
         assert (tmp_path / Path(exported[key]).name).exists()
+
+
+def test_rng_seed_makes_results_reproducible() -> None:
+    """Same rng_seed should produce identical stochastic metrics."""
+    tasks = [
+        {"id": "task_1", "duration": 5.0, "optimistic_duration": 4.0, "pessimistic_duration": 8.0},
+        {"id": "task_2", "duration": 5.0, "optimistic_duration": 4.5, "pessimistic_duration": 6.5},
+        {"id": "task_3", "duration": 2.0, "optimistic_duration": 1.0, "pessimistic_duration": 3.0},
+    ]
+    dependencies = [
+        {"from_id": "task_1", "to_id": "task_3", "type": "FS", "lag": 0.0},
+        {"from_id": "task_2", "to_id": "task_3", "type": "FS", "lag": 0.0},
+    ]
+    config = {"mc_iterations": 200, "rng_seed": 123}
+
+    engine = SentinelEngine()
+    first = engine.analyze(tasks, dependencies, config)
+    second = engine.analyze(tasks, dependencies, config)
+
+    assert first.cruciality_metrics == second.cruciality_metrics
+    assert first.project_confidence == second.project_confidence
+    assert first.sensitivity_spearman == second.sensitivity_spearman
+    assert first.tornado_impact == second.tornado_impact

@@ -1,4 +1,4 @@
-"""Compatibility wrapper for legacy simulation import path."""
+"""Package-facing stochastic simulation exports."""
 
 from stochastic.simulation import SimulationResult, run_monte_carlo
 

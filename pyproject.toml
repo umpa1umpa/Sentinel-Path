@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sentinel-path"
-version = "0.1.0"
+version = "0.2.0"
 description = "Structural fragility analysis for project dependency graphs."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -21,14 +21,18 @@ dev = [
   "pytest>=8.0",
 ]
 
+[project.scripts]
+sentinel-path = "sentinel_path.__main__:main"
+sentinel-path-schema = "sentinel_path.schema_cli:main"
+
 [tool.hatch.build.targets.wheel]
 include = [
   "/engine.py",
   "/__init__.py",
+  "/sentinel_path",
   "/core",
   "/models",
   "/stochastic",
-  "/math",
 ]
 
 [tool.uv]

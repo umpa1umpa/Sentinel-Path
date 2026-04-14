@@ -11,6 +11,7 @@
 - Анализ чувствительности:
   - `sensitivity_spearman` - коэффициент Спирмена между длительностью задачи и сроком проекта.
   - `tornado_impact` - оценка влияния `+1 дня` в задаче на итоговую длительность.
+- Воспроизводимость моделирования через `config.rng_seed`.
 - Экспорт графиков через `SentinelEngine.export_charts()`:
   - `finish_date_histogram.png`
   - `s_curve.png`
@@ -47,7 +48,7 @@ pip install -e ".[dev]"
 ## Быстрый старт
 
 ```python
-from engine import SentinelEngine
+from sentinel_path import SentinelEngine
 
 tasks = [
     {"id": "A", "duration": 6, "optimistic_duration": 4, "pessimistic_duration": 9},
@@ -68,7 +69,7 @@ engine = SentinelEngine()
 report = engine.analyze(
     tasks_raw=tasks,
     dependencies_raw=dependencies,
-    config_raw={"mc_iterations": 3000, "convergence_threshold_pct": 0.1},
+    config_raw={"mc_iterations": 3000, "convergence_threshold_pct": 0.1, "rng_seed": 42},
 )
 
 print(report.project_duration_base)
@@ -79,6 +80,36 @@ print(report.tornado_impact)
 
 charts = engine.export_charts("artifacts/charts")
 print(charts)
+```
+
+## Модульность и запуск
+
+- Единый фасад: `from sentinel_path import SentinelEngine`
+- Отдельные модули:
+  - `sentinel_path.schemas`
+  - `sentinel_path.topology`
+  - `sentinel_path.fragility`
+  - `sentinel_path.simulation`
+- CLI запуск:
+
+```bash
+python -m sentinel_path --tasks tasks.json --dependencies deps.json --config config.json --output report.json --charts-dir artifacts/charts
+```
+
+## Контракт API (JSON Schema)
+
+Экспорт JSON Schema для `SentinelReport`:
+
+```bash
+sentinel-path-schema --output schemas/sentinel_report.schema.json
+```
+
+или программно:
+
+```python
+from sentinel_path import write_report_json_schema
+
+write_report_json_schema("schemas/sentinel_report.schema.json")
 ```
 
 ## Сценарий ценности: критический узел из 5 задач

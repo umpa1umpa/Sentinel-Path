@@ -33,7 +33,6 @@ include = [
   "/core",
   "/models",
   "/stochastic",
-  "/math",
 ]
 
 [tool.uv]

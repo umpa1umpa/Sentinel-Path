@@ -47,7 +47,7 @@ pip install -e ".[dev]"
 ## Быстрый старт
 
 ```python
-from engine import SentinelEngine
+from sentinel_path import SentinelEngine
 
 tasks = [
     {"id": "A", "duration": 6, "optimistic_duration": 4, "pessimistic_duration": 9},
@@ -79,6 +79,20 @@ print(report.tornado_impact)
 
 charts = engine.export_charts("artifacts/charts")
 print(charts)
+```
+
+## Модульность и запуск
+
+- Единый фасад: `from sentinel_path import SentinelEngine`
+- Отдельные модули:
+  - `sentinel_path.schemas`
+  - `sentinel_path.topology`
+  - `sentinel_path.fragility`
+  - `sentinel_path.simulation`
+- CLI запуск:
+
+```bash
+python -m sentinel_path --tasks tasks.json --dependencies deps.json --config config.json --output report.json --charts-dir artifacts/charts
 ```
 
 ## Сценарий ценности: критический узел из 5 задач

@@ -21,10 +21,14 @@ dev = [
   "pytest>=8.0",
 ]
 
+[project.scripts]
+sentinel-path = "sentinel_path.__main__:main"
+
 [tool.hatch.build.targets.wheel]
 include = [
   "/engine.py",
   "/__init__.py",
+  "/sentinel_path",
   "/core",
   "/models",
   "/stochastic",

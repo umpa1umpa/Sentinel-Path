@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 import networkx as nx
 import numpy as np
+from scipy.stats import spearmanr
 
 from core.errors import GraphTopologyError
 from models.schemas import Task
@@ -17,6 +18,11 @@ class SimulationResult:
 
     cruciality_metrics: dict[str, float]
     project_confidence: float
+    sensitivity_spearman: dict[str, float]
+    tornado_impact: dict[str, float]
+    project_durations: np.ndarray
+    sampled_durations: np.ndarray
+    topo_order: list[str]
 
 
 def run_monte_carlo(
@@ -46,9 +52,19 @@ def run_monte_carlo(
     project_confidence = round(
         float((project_durations <= baseline_duration).sum() * 100.0 / mc_iterations), 2
     )
+    sensitivity_spearman, tornado_impact = _compute_sensitivity_metrics(
+        durations=durations,
+        project_durations=project_durations,
+        topo_order=topo_order,
+    )
     return SimulationResult(
         cruciality_metrics=cruciality,
         project_confidence=project_confidence,
+        sensitivity_spearman=sensitivity_spearman,
+        tornado_impact=tornado_impact,
+        project_durations=project_durations,
+        sampled_durations=durations,
+        topo_order=topo_order,
     )
 
 
@@ -118,3 +134,29 @@ def _compute_total_float_matrix(
 
     total_float = ls - es
     return total_float, project_duration
+
+
+def _compute_sensitivity_metrics(
+    durations: np.ndarray,
+    project_durations: np.ndarray,
+    topo_order: list[str],
+) -> tuple[dict[str, float], dict[str, float]]:
+    """Compute Spearman rank correlation and linear impact slope per task."""
+    sensitivity_spearman: dict[str, float] = {}
+    tornado_impact: dict[str, float] = {}
+
+    for idx, task_id in enumerate(topo_order):
+        task_samples = durations[:, idx]
+        rho, _ = spearmanr(task_samples, project_durations)
+        if np.isnan(rho):
+            rho = 0.0
+
+        centered_x = task_samples - float(np.mean(task_samples))
+        centered_y = project_durations - float(np.mean(project_durations))
+        denominator = float(np.sum(centered_x**2))
+        slope = 0.0 if np.isclose(denominator, 0.0) else float(np.sum(centered_x * centered_y) / denominator)
+
+        sensitivity_spearman[task_id] = round(float(rho), 4)
+        tornado_impact[task_id] = round(slope, 4)
+
+    return sensitivity_spearman, tornado_impact

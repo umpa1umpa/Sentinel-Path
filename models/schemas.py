@@ -94,3 +94,5 @@ class SentinelReport(BaseModel):
     fragility_points: list[FragilityPoint]
     cruciality_metrics: dict[str, float]
     project_confidence: float
+    sensitivity_spearman: dict[str, float] = Field(default_factory=dict)
+    tornado_impact: dict[str, float] = Field(default_factory=dict)

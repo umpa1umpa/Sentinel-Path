@@ -1,103 +1,102 @@
-# Sentinel Path 🛰️
+# Sentinel Path
 
-**Sentinel Path** — это продвинутая Python-библиотека для анализа сетевых графиков задач, которая выходит за рамки классического метода критического пути (CPM). Система выявляет «скрытую хрупкость» проектов, используя стохастическое моделирование и расчет индексов сходимости путей.
+`Sentinel Path` - библиотека анализа структурной хрупкости сетевых графиков проекта.
+Она объединяет CPM, анализ сходимости путей и Монте-Карло на Beta-PERT.
 
----
+## Возможности
 
-## 🚀 Ключевые возможности
+- Расчет `ES/EF/LS/LF/TF` с поддержкой `FS`-зависимостей и `lag`.
+- Поиск точек хрупкости через `PCI` (узлы, где сходятся околокритические пути).
+- Монте-Карло с `Cruciality Index` по задачам.
+- Анализ чувствительности:
+  - `sensitivity_spearman` - коэффициент Спирмена между длительностью задачи и сроком проекта.
+  - `tornado_impact` - оценка влияния `+1 дня` в задаче на итоговую длительность.
+- Экспорт графиков через `SentinelEngine.export_charts()`:
+  - `finish_date_histogram.png`
+  - `s_curve.png`
+  - `tornado.png`
 
-* **Анализ топологии (Core CPM):** Расчет ранних/поздних сроков (ES, EF, LS, LF) и свободного резерва времени (Total Float) с поддержкой временных задержек (**Lag**).
-* **Детектор точек хрупкости (PCI):** Идентификация узлов схождения путей (Convergence Points), где задержка одной задачи может вызвать «эффект домино».
-* **Симуляция Монте-Карло:** Оценка вероятности завершения проекта в срок на основе 1000+ итераций.
-* **Beta-PERT Распределение:** Использование статистически достоверного метода оценки длительности задач:
-    $$T_{expected} = \frac{O + 4M + P}{6}$$
-    *(где O — оптимистичный, M — наиболее вероятный, P — пессимистичный сроки)*.
-* **Cruciality Index:** Определение реальной значимости задачи на основе частоты её попадания на критический путь в ходе симуляций.
-
----
-
-## 📦 Установка
+## Установка
 
 ```bash
-# Клонируйте репозиторий
-git clone [https://github.com/your-repo/sentinel-path.git](https://github.com/your-repo/sentinel-path.git)
-cd sentinel-path
-
-# Создайте виртуальное окружение
-python -m venv venv
-source venv/bin/activate  # Для Windows: venv\Scripts\activate
-
-# Установите зависимости
-pip install -r requirements.txt
+python -m venv .venv
+.venv\Scripts\activate
+pip install -e .
 ```
 
----
+Для разработки:
 
-## 🛠️ Быстрый старт
+```bash
+pip install -e ".[dev]"
+```
 
-Центральным узлом системы является класс **SentinelEngine**, который берет на себя всю логику валидации и вычислений.
+## Быстрый старт
 
-```Python
-from sentinel_path import SentinelEngine
+```python
+from engine import SentinelEngine
 
-# 1. Определение данных проекта
 tasks = [
-    {"id": "A", "duration": 10, "optimistic_duration": 8, "pessimistic_duration": 15},
-    {"id": "B", "duration": 5, "optimistic_duration": 4, "pessimistic_duration": 10},
-    {"id": "C", "duration": 8, "optimistic_duration": 7, "pessimistic_duration": 12}
+    {"id": "A", "duration": 6, "optimistic_duration": 4, "pessimistic_duration": 9},
+    {"id": "B", "duration": 7, "optimistic_duration": 5, "pessimistic_duration": 11},
+    {"id": "C", "duration": 5, "optimistic_duration": 3, "pessimistic_duration": 8},
+    {"id": "D", "duration": 4, "optimistic_duration": 3, "pessimistic_duration": 7},
+    {"id": "E", "duration": 3, "optimistic_duration": 2, "pessimistic_duration": 5},
 ]
 
 dependencies = [
-    {"from_id": "A", "to_id": "C", "type": "FS", "lag": 2},
-    {"from_id": "B", "to_id": "C", "type": "FS"}
+    {"from_id": "A", "to_id": "D", "type": "FS", "lag": 0.0},
+    {"from_id": "B", "to_id": "D", "type": "FS", "lag": 0.0},
+    {"from_id": "C", "to_id": "D", "type": "FS", "lag": 0.0},
+    {"from_id": "D", "to_id": "E", "type": "FS", "lag": 0.0},
 ]
 
-# 2. Инициализация и расчет
 engine = SentinelEngine()
 report = engine.analyze(
-    tasks=tasks, 
-    dependencies=dependencies, 
-    config={"mc_iterations": 2000}
+    tasks_raw=tasks,
+    dependencies_raw=dependencies,
+    config_raw={"mc_iterations": 3000, "convergence_threshold_pct": 0.1},
 )
 
-# 3. Результаты
-print(f"Базовая длительность: {report.project_duration_base}")
-print(f"Вероятность успеха: {report.project_confidence}%")
-print(f"Критический путь: {report.critical_path_base}")
+print(report.project_duration_base)
+print(report.project_confidence)
+print(report.cruciality_metrics)
+print(report.sensitivity_spearman)
+print(report.tornado_impact)
+
+charts = engine.export_charts("artifacts/charts")
+print(charts)
 ```
 
----
+## Сценарий ценности: критический узел из 5 задач
 
-## 🏗️ Архитектура
+Если в один узел сходятся несколько задач, классический CPM обычно покажет только один критический путь.
+`Sentinel Path` показывает полную картину:
 
-Модуль спроектирован по принципам **Clean Architecture**:
-* **models/**: Строгая валидация данных через Pydantic v2 (схемы **Task**, **Dependency**, **Report**).
-* **core/**: Логика графов (NetworkX), расчеты топологической хрупкости и CPM.
-* **math/**: Векторизованные вычисления NumPy для высокоскоростного Монте-Карло.
-* **engine.py**: Единый интерфейс (Facade) для работы с библиотекой.
+1. `PCI` фиксирует узел с высокой уязвимостью.
+2. `Cruciality Index` выявляет задачи, которые чаще всего "перехватывают" критичность в стохастике.
+3. `sensitivity_spearman` и `tornado_impact` дают ответ менеджеру:
+   какая задача действительно двигает дату финиша, и на сколько дней.
 
----
+Итог: можно приоритизировать буферы и управленческое внимание по реальному риску, а не только по базовому критическому пути.
 
-## 🧪 Тестирование
+## Benchmark
 
-Проект покрыт юнит-тестами, проверяющими корректность расчетов прямого/обратного прохода и устойчивость к циклам.
+Скрипт замера производительности:
 
-```Bash
-# Запуск всех тестов
-pytest
+```bash
+python scripts/benchmark.py
+```
 
-# Запуск с детальным выводом
+Он прогоняет матрицу:
+- графы: `10`, `100`, `500` узлов;
+- итерации: `100`, `1000`, `10000`.
+
+Результаты сохраняются в:
+- `benchmarks/latest.csv`
+- `benchmarks/latest.md`
+
+## Тесты
+
+```bash
 pytest -v
 ```
-
----
-
-## 📈 Roadmap
-
-* **Интеграция с Plotly**: Автоматическая генерация S-кривых и гистограмм распределения рисков.
-* **Sensitivity Analysis**: Расчет корреляции Спирмена для каждой задачи.
-* **Resource Leveling**: Учет ограничений по человеческим и техническим ресурсам.
-
----
-
-Разработано как аналитический инструмент для управления сложными проектами с высокой степенью неопределенности.

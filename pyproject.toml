@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sentinel-path"
+version = "0.1.0"
+description = "Structural fragility analysis for project dependency graphs."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "matplotlib>=3.8",
+  "networkx>=3.0",
+  "numpy>=1.26",
+  "pydantic>=2.0",
+  "scipy>=1.11",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+
+[tool.setuptools]
+py-modules = ["engine"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["core*", "math*", "models*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

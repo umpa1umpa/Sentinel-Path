@@ -18,6 +18,20 @@
 
 ## Установка
 
+Рекомендуемый способ (uv):
+
+```bash
+uv sync
+```
+
+Запуск тестов через uv:
+
+```bash
+uv run pytest -v
+```
+
+Альтернатива через pip:
+
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
@@ -98,5 +112,5 @@ python scripts/benchmark.py
 ## Тесты
 
 ```bash
-pytest -v
+uv run pytest -v
 ```

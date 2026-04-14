@@ -5,8 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-import importlib.util
-import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,6 +13,7 @@ from core.fragility import find_fragility_points
 from core.errors import GraphTopologyError
 from core.topology import build_project_graph, critical_path_nodes, run_cpm
 from models.schemas import Dependency, ProjectConfig, SentinelReport, Task
+from stochastic.simulation import run_monte_carlo
 
 
 @dataclass(frozen=True)
@@ -24,18 +23,6 @@ class _AnalysisSnapshot:
     project_durations: np.ndarray
     sensitivity_spearman: dict[str, float]
     tornado_impact: dict[str, float]
-
-
-def _load_simulation_module() -> Any:
-    """Load simulation module from math/simulation.py safely."""
-    module_path = Path(__file__).parent / "math" / "simulation.py"
-    spec = importlib.util.spec_from_file_location("sentinel_simulation", module_path)
-    if spec is None or spec.loader is None:
-        raise ImportError("Failed to load simulation module.")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
 
 
 class SentinelEngine:
@@ -70,8 +57,7 @@ class SentinelEngine:
             predecessors_by_node=predecessors,
         )
 
-        simulation_module = _load_simulation_module()
-        simulation_result = simulation_module.run_monte_carlo(
+        simulation_result = run_monte_carlo(
             graph=graph,
             tasks=tasks,
             mc_iterations=config.mc_iterations,

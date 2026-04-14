@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling>=1.25.0"]
+build-backend = "hatchling.build"
 
 [project]
 name = "sentinel-path"
@@ -21,12 +21,23 @@ dev = [
   "pytest>=8.0",
 ]
 
-[tool.setuptools]
-py-modules = ["engine"]
+[tool.hatch.build.targets.wheel]
+include = [
+  "/engine.py",
+  "/__init__.py",
+  "/core",
+  "/models",
+  "/stochastic",
+  "/math",
+]
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["core*", "math*", "models*"]
+[tool.uv]
+default-groups = ["dev"]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

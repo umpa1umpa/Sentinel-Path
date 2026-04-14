@@ -62,6 +62,7 @@ class SentinelEngine:
             tasks=tasks,
             mc_iterations=config.mc_iterations,
             baseline_duration=project_duration,
+            rng_seed=config.rng_seed,
         )
         self._last_snapshot = _AnalysisSnapshot(
             project_durations=simulation_result.project_durations,

@@ -37,6 +37,8 @@ def build_project_graph(tasks: list[Task], dependencies: list[Dependency]) -> nx
 
     for dep in dependencies:
         if dep.from_id not in task_ids or dep.to_id not in task_ids:
+            # Fail-fast on broken references so downstream CPM logic never dereferences
+            # a missing node and produces a misleading schedule.
             raise GraphTopologyError(
                 f"Dependency references unknown tasks: {dep.from_id} -> {dep.to_id}."
             )
@@ -47,6 +49,8 @@ def build_project_graph(tasks: list[Task], dependencies: list[Dependency]) -> nx
 
     isolates = list(nx.isolates(graph))
     if isolates and len(graph.nodes) > 1:
+        # Single-task projects are valid, but isolates in multi-node graphs usually
+        # mean input data lost an edge and would hide risk in path calculations.
         raise GraphTopologyError(f"Isolated tasks detected: {isolates}.")
 
     return graph
@@ -68,6 +72,8 @@ def run_cpm(
     for node in topo_order:
         preds = list(graph.predecessors(node))
         if preds:
+            # We take max(EF + lag) to model FS constraints correctly: a task can only
+            # start after the latest prerequisite chain is satisfied.
             es[node] = max(
                 ef[pred] + float(graph.edges[pred, node].get("lag", 0.0))
                 for pred in preds
@@ -83,6 +89,8 @@ def run_cpm(
     for node in reversed(topo_order):
         succs = list(graph.successors(node))
         if succs:
+            # Backward pass mirrors forward constraints: we pick the earliest allowed
+            # successor start to keep all outgoing chains feasible.
             lf[node] = min(
                 ls[succ] - float(graph.edges[node, succ].get("lag", 0.0))
                 for succ in succs
@@ -114,6 +122,8 @@ def _resolve_durations(
     graph: nx.DiGraph, durations: Mapping[str, float] | None
 ) -> dict[str, float]:
     """Resolve effective task durations for CPM run."""
+    # TODO: Accept vectorized/array duration inputs for large Monte Carlo batches to
+    # avoid per-node dict lookup overhead in high-volume scenarios.
     resolved: dict[str, float] = {}
     for node, payload in graph.nodes(data=True):
         if durations is not None:

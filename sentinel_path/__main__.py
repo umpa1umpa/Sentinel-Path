@@ -10,6 +10,7 @@ from sentinel_path.engine import SentinelEngine
 
 
 def _load_json(path: Path) -> object:
+    # Centralized UTF-8 loading keeps CLI behavior stable across Windows/Linux shells.
     return json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -53,6 +54,8 @@ def main() -> None:
         engine.export_charts(args.charts_dir)
 
     payload = report.model_dump()
+    # TODO: Add optional JSON Schema validation for input files before analyze() to
+    # surface malformed payloads with clearer CLI diagnostics.
     if args.output:
         args.output.write_text(
             json.dumps(payload, ensure_ascii=False, indent=2),

@@ -44,6 +44,8 @@ class SentinelEngine:
         ]
         config = ProjectConfig.model_validate(config_raw or {})
 
+        # Graph validation is intentionally centralized here so both API and CLI paths
+        # fail with the same deterministic topology errors.
         graph = build_project_graph(tasks, dependencies)
         timing, project_duration = run_cpm(graph)
         critical_path = critical_path_nodes(timing)
@@ -64,6 +66,8 @@ class SentinelEngine:
             baseline_duration=project_duration,
             rng_seed=config.rng_seed,
         )
+        # Snapshot is cached to avoid re-running expensive Monte Carlo just for chart
+        # export, while keeping export_charts() side-effect free for analysis output.
         self._last_snapshot = _AnalysisSnapshot(
             project_durations=simulation_result.project_durations,
             sensitivity_spearman=simulation_result.sensitivity_spearman,
@@ -121,6 +125,7 @@ class SentinelEngine:
             key=lambda item: abs(item[1]),
             reverse=True,
         )[:top_n_tornado]
+        # TODO: Add configurable chart backend/theme for headless CI and custom reports.
         labels = [item[0] for item in sorted_impacts]
         impacts = [item[1] for item in sorted_impacts]
         plt.figure(figsize=(9, max(4, len(labels) * 0.45)))

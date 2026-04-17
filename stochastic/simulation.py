@@ -44,6 +44,8 @@ def run_monte_carlo(
     durations = _sample_pert_durations(task_by_id, topo_order, mc_iterations, rng_seed)
     total_float, project_durations = _compute_total_float_matrix(graph, topo_order, durations)
 
+    # Cruciality is estimated as "how often task float collapses to zero" across all
+    # stochastic runs; this reflects probabilistic criticality, not only base CPM state.
     critical_hits = np.isclose(total_float, 0.0, atol=1e-8).sum(axis=0)
     cruciality = {
         node: round(float(critical_hits[idx] * 100.0 / mc_iterations), 2)
@@ -85,9 +87,13 @@ def _sample_pert_durations(
         high = task.pessimistic_duration
 
         if np.isclose(low, high):
+            # Degenerate PERT case: when bounds collapse, sampling Beta adds noise
+            # without information gain, so we pin all iterations to the fixed value.
             samples[:, idx] = low
             continue
 
+        # Lambda=4 in Beta-PERT keeps the mode influential while preserving bounded
+        # support [optimistic, pessimistic], which is safer than normal assumptions.
         alpha = 1.0 + 4.0 * (mode - low) / (high - low)
         beta = 1.0 + 4.0 * (high - mode) / (high - low)
         beta_samples = rng.beta(alpha, beta, size=mc_iterations)
@@ -108,6 +114,8 @@ def _compute_total_float_matrix(
         idx = node_to_idx[node]
         preds = list(graph.predecessors(node))
         if preds:
+            # Vectorized predecessor max allows us to compute ES for all Monte Carlo
+            # iterations in one pass per node.
             candidates = [
                 ef[:, node_to_idx[pred]] + float(graph.edges[pred, node].get("lag", 0.0))
                 for pred in preds
@@ -123,6 +131,8 @@ def _compute_total_float_matrix(
         idx = node_to_idx[node]
         succs = list(graph.successors(node))
         if succs:
+            # Symmetric vectorized backward pass keeps each iteration schedule feasible
+            # without running a Python loop per simulation.
             candidates = [
                 ls[:, node_to_idx[succ]] - float(graph.edges[node, succ].get("lag", 0.0))
                 for succ in succs
@@ -149,11 +159,15 @@ def _compute_sensitivity_metrics(
         task_samples = durations[:, idx]
         rho, _ = spearmanr(task_samples, project_durations)
         if np.isnan(rho):
+            # Constant samples can make rank correlation undefined; zero keeps report
+            # stable and signals "no measurable monotonic signal".
             rho = 0.0
 
         centered_x = task_samples - float(np.mean(task_samples))
         centered_y = project_durations - float(np.mean(project_durations))
         denominator = float(np.sum(centered_x**2))
+        # TODO: Evaluate robust regression (e.g., Theil-Sen) for tornado slope to
+        # reduce sensitivity to outlier iterations.
         slope = (
             0.0
             if np.isclose(denominator, 0.0)

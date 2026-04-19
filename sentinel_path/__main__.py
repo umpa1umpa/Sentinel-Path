@@ -13,35 +13,24 @@ from sentinel_path.path_handler import clean_path, validate_access
 
 
 def _load_json(path: Path) -> object:
-    """
-    Safely loads and parses a JSON file from a validated path.
-    
-    Why: Using UTF-8 ensures consistency across platforms and handles special characters
-    in task names or descriptions.
-    
-    Business result: Provides a clean data structure for the engine to analyze.
-    """
-    # Using clean_path to normalize input path string to handle cross-platform differences
+    """Читает JSON с диска. Да, это тонкая обертка, но она держит IO в одном месте."""
+    # FIXME: argparse уже дает Path, но мы все равно прогоняем через clean_path.
+    # Это работает, но выглядит как "двойная броня". Когда-нибудь надо упростить.
     normalized_path = clean_path(path)
-    
-    # We check access early to fail fast if the file is not readable, improving UX.
+
+    # Падаем рано: лучше сразу, чем после половины пайплайна.
     if not validate_access(normalized_path, os.R_OK):
         print(f"Error: Path '{normalized_path}' is not accessible for reading.")
         sys.exit(1)
-        
+
+    # Внимание: пустой файл или `{}` без нужных полей — это разные истории.
+    # Пустой файл уронит json.loads, а `{}` для tasks — уже ValidationError внутри engine.
+    # TODO: нормальная валидация "пустой config = дефолты" пока не сделана.
     return json.loads(normalized_path.read_text(encoding="utf-8"))
 
 
 def main() -> None:
-    """
-    Main CLI entry point for project fragility and risk analysis.
-    
-    Why: Orchestrates the loading of tasks, dependencies, and configuration to produce
-    a comprehensive report on project schedule risks.
-    
-    Business result: Enables users to run analysis from the terminal or automate it
-    via CI/CD pipelines.
-    """
+    """CLI: собрать вход, прогнать engine, опционально сохранить картинки."""
     parser = argparse.ArgumentParser(description="Run Sentinel Path analysis.")
     parser.add_argument("--tasks", type=Path, required=True, help="Path to tasks JSON file")
     parser.add_argument(
@@ -70,27 +59,25 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    # The engine is our primary facade that hides the complexity of topology and stochastic logic.
     engine = SentinelEngine()
-    
-    # We load each component separately to isolate potential parsing errors.
+
+    # Грузим кусками: так проще понять, какой именно JSON больной.
     report = engine.analyze(
         tasks_raw=_load_json(args.tasks),
         dependencies_raw=_load_json(args.dependencies),
         config_raw=_load_json(args.config) if args.config else None,
     )
 
-    # Chart generation is optional to save time in high-frequency automated runs.
     if args.charts_dir:
         charts_path = clean_path(args.charts_dir)
-        # We ensure the directory exists before attempting to write images.
+        # TODO: проверить writable, а не только mkdir. Сейчас mkdir "успокаивает", но не гарантирует.
         charts_path.mkdir(parents=True, exist_ok=True)
         engine.export_charts(charts_path)
 
     payload = report.model_dump()
     if args.output:
         output_path = clean_path(args.output)
-        # We write with ensure_ascii=False to support non-Latin characters in reports.
+        # UTF-8 + ensure_ascii=False: кириллица в id задач не должна превращаться в \\uXXXX в отчете.
         output_path.write_text(
             json.dumps(payload, ensure_ascii=False, indent=2),
             encoding="utf-8",

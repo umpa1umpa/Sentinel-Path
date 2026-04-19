@@ -26,15 +26,7 @@ class _AnalysisSnapshot:
 
 
 class SentinelEngine:
-    """
-    Facade for topology, fragility and stochastic analysis.
-    
-    This class orchestrates the entire analysis pipeline, from graph building
-    to Monte Carlo simulations and chart generation.
-    
-    Business result: Provides a high-level API for project managers and analysts
-     to assess project schedule risks and identify critical paths.
-    """
+    """Высокоуровневый вход в анализ: один вызов, полный отчет."""
 
     def __init__(self) -> None:
         self._last_snapshot: _AnalysisSnapshot | None = None
@@ -45,30 +37,25 @@ class SentinelEngine:
         dependencies_raw: list[dict[str, Any]],
         config_raw: dict[str, Any] | None = None,
     ) -> SentinelReport:
-        """
-        Validates input data and produces a comprehensive Sentinel report.
-        
-        Why: We separate the raw dictionary input from the internal Pydantic models
-        to ensure data integrity and catch schema errors early.
-        
-        Business result: A structured report containing project duration, critical paths,
-        and fragility metrics for risk management.
-        """
-        # We validate the models here so that the engine works with clean, typed objects.
+        """Собирает отчет из сырого JSON-подобного входа."""
+        # Валидацию делаем в самом начале: так проще получить точную ошибку по контракту,
+        # а не неочевидный сбой в середине вычислений.
         tasks = [Task.model_validate(task) for task in tasks_raw]
         dependencies = [
             Dependency.model_validate(dependency) for dependency in dependencies_raw
         ]
+        # Внимание: если CLI передал пустой/битый JSON как config, мы сюда не дойдем —
+        # упадем раньше на json.loads. "Пустой config = дефолты" пока не делаем.
         config = ProjectConfig.model_validate(config_raw or {})
 
-        # 1. Build the project graph - this is the backbone of all further analysis.
+        # Сначала строим граф: все последующие шаги завязаны на корректной DAG-структуре.
         graph = build_project_graph(tasks, dependencies)
-        
-        # 2. Run Critical Path Method (CPM) to find baseline project duration.
+
+        # Базовый CPM нужен как "якорь": от него считаем confidence и сравниваем сценарии.
         timing, project_duration = run_cpm(graph)
         critical_path = critical_path_nodes(timing)
 
-        # 3. Identify fragility points where paths converge and risks are high.
+        # Сходимости путей считаем отдельно от стохастики: это чисто структурный риск.
         tf_by_node = {node: metrics.tf for node, metrics in timing.items()}
         predecessors = {node: list(graph.predecessors(node)) for node in graph.nodes}
         fragility = find_fragility_points(
@@ -78,7 +65,7 @@ class SentinelEngine:
             predecessors_by_node=predecessors,
         )
 
-        # 4. Run Monte Carlo simulation for stochastic risk assessment.
+        # Здесь включается вероятностная часть, которая показывает поведение плана под шумом.
         simulation_result = run_monte_carlo(
             graph=graph,
             tasks=tasks,
@@ -87,7 +74,7 @@ class SentinelEngine:
             rng_seed=config.rng_seed,
         )
         
-        # We save the simulation snapshot for future chart generation to avoid re-running MC.
+        # Снимок результатов держим в памяти, чтобы export_charts не гонял Монте-Карло повторно.
         self._last_snapshot = _AnalysisSnapshot(
             project_durations=simulation_result.project_durations,
             sensitivity_spearman=simulation_result.sensitivity_spearman,
@@ -107,16 +94,10 @@ class SentinelEngine:
     def export_charts(
         self, output_dir: str | Path, top_n_tornado: int = 10
     ) -> dict[str, str]:
-        """
-        Generates and saves visual analysis charts to the specified directory.
-        
-        Why: Visualizing risk distributions and tornado impacts makes the analytical
-        results more accessible to stakeholders than raw numbers.
-        
-        Business result: Three PNG files providing a visual overview of project risks.
-        """
+        """Сохраняет графики по последнему вызову analyze()."""
         if self._last_snapshot is None:
-            # We enforce a strict order of operations: analyze first, then visualize.
+            # Важно явно падать здесь: без analyze() нельзя гарантировать, что графики
+            # соответствуют текущему набору задач.
             raise GraphTopologyError("Run analyze() before export_charts().")
 
         output_path = Path(output_dir)

@@ -44,6 +44,8 @@ class SentinelEngine:
         dependencies = [
             Dependency.model_validate(dependency) for dependency in dependencies_raw
         ]
+        # Внимание: если CLI передал пустой/битый JSON как config, мы сюда не дойдем —
+        # упадем раньше на json.loads. "Пустой config = дефолты" пока не делаем.
         config = ProjectConfig.model_validate(config_raw or {})
 
         # Сначала строим граф: все последующие шаги завязаны на корректной DAG-структуре.

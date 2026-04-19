@@ -26,7 +26,15 @@ class _AnalysisSnapshot:
 
 
 class SentinelEngine:
-    """Facade for topology, fragility and stochastic analysis."""
+    """
+    Facade for topology, fragility and stochastic analysis.
+    
+    This class orchestrates the entire analysis pipeline, from graph building
+    to Monte Carlo simulations and chart generation.
+    
+    Business result: Provides a high-level API for project managers and analysts
+     to assess project schedule risks and identify critical paths.
+    """
 
     def __init__(self) -> None:
         self._last_snapshot: _AnalysisSnapshot | None = None
@@ -37,19 +45,30 @@ class SentinelEngine:
         dependencies_raw: list[dict[str, Any]],
         config_raw: dict[str, Any] | None = None,
     ) -> SentinelReport:
-        """Validate input and produce final Sentinel report."""
+        """
+        Validates input data and produces a comprehensive Sentinel report.
+        
+        Why: We separate the raw dictionary input from the internal Pydantic models
+        to ensure data integrity and catch schema errors early.
+        
+        Business result: A structured report containing project duration, critical paths,
+        and fragility metrics for risk management.
+        """
+        # We validate the models here so that the engine works with clean, typed objects.
         tasks = [Task.model_validate(task) for task in tasks_raw]
         dependencies = [
             Dependency.model_validate(dependency) for dependency in dependencies_raw
         ]
         config = ProjectConfig.model_validate(config_raw or {})
 
-        # Graph validation is intentionally centralized here so both API and CLI paths
-        # fail with the same deterministic topology errors.
+        # 1. Build the project graph - this is the backbone of all further analysis.
         graph = build_project_graph(tasks, dependencies)
+        
+        # 2. Run Critical Path Method (CPM) to find baseline project duration.
         timing, project_duration = run_cpm(graph)
         critical_path = critical_path_nodes(timing)
 
+        # 3. Identify fragility points where paths converge and risks are high.
         tf_by_node = {node: metrics.tf for node, metrics in timing.items()}
         predecessors = {node: list(graph.predecessors(node)) for node in graph.nodes}
         fragility = find_fragility_points(
@@ -59,6 +78,7 @@ class SentinelEngine:
             predecessors_by_node=predecessors,
         )
 
+        # 4. Run Monte Carlo simulation for stochastic risk assessment.
         simulation_result = run_monte_carlo(
             graph=graph,
             tasks=tasks,
@@ -66,8 +86,8 @@ class SentinelEngine:
             baseline_duration=project_duration,
             rng_seed=config.rng_seed,
         )
-        # Snapshot is cached to avoid re-running expensive Monte Carlo just for chart
-        # export, while keeping export_charts() side-effect free for analysis output.
+        
+        # We save the simulation snapshot for future chart generation to avoid re-running MC.
         self._last_snapshot = _AnalysisSnapshot(
             project_durations=simulation_result.project_durations,
             sensitivity_spearman=simulation_result.sensitivity_spearman,
@@ -87,8 +107,16 @@ class SentinelEngine:
     def export_charts(
         self, output_dir: str | Path, top_n_tornado: int = 10
     ) -> dict[str, str]:
-        """Export histogram, S-curve and tornado charts from last analysis."""
+        """
+        Generates and saves visual analysis charts to the specified directory.
+        
+        Why: Visualizing risk distributions and tornado impacts makes the analytical
+        results more accessible to stakeholders than raw numbers.
+        
+        Business result: Three PNG files providing a visual overview of project risks.
+        """
         if self._last_snapshot is None:
+            # We enforce a strict order of operations: analyze first, then visualize.
             raise GraphTopologyError("Run analyze() before export_charts().")
 
         output_path = Path(output_dir)
@@ -125,7 +153,6 @@ class SentinelEngine:
             key=lambda item: abs(item[1]),
             reverse=True,
         )[:top_n_tornado]
-        # TODO: Add configurable chart backend/theme for headless CI and custom reports.
         labels = [item[0] for item in sorted_impacts]
         impacts = [item[1] for item in sorted_impacts]
         plt.figure(figsize=(9, max(4, len(labels) * 0.45)))
